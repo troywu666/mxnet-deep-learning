@@ -96,4 +96,68 @@ batch_size=256
 train_iter,test_iter =d2l.load_data_fashion_mnist(batch_size)
 
 #初始化模型参数
+num_inputs=28*28
+num_outputs=10
+
+w=nd.random.normal(scale=0.01,shape=(num_inputs,num_outputs))
+b=nd.zeros(shape=num_outputs)
+
+w.attach_grad()
+b.attach_grad()
+
+#定义net函数
+def Softmax(X):
+    X_exp=X.exp()
+    X_exp_sum=X_exp.sum(axis=1,keepdims=True)
+    return X_exp/X_exp_sum
+def net(X):
+    return Softmax(nd.dot(X.reshape(-1,num_inputs),w)+b)   
+
+#定义损失函数和正确率函数
+def cross_entropy(y_hat,y):
+    return -nd.pick(y_hat,y).log()
+def evaluate_accuracy(data_iter,net):
+    acc_sum,n=0.0,0
+    for x,y in data_iter:
+        y_hat=net(x)
+        y=y.astype('float32')
+        acc_sum+=((y_hat.argmax(axis=1))==y).sum().asscalar()
+        n+=y.size
+    return acc_sum/n
+
+#定义随机梯度下降函数
+def sgd(params,lr,batch_size):    
+    for param in params:
+        param[:]-=lr*param.grad/batch_size
+
+#训练模型
+n=0.0
+lr=0.1
+epochs=10
+def train_ch3(net,train_iter,test_iter,loss,epochs,batch_size,w,b,lr,trainer):
+    for epoch in range(epochs):
+        train_loss,train_accuracy,n=0.0,0.0,0
+        for x,y in train_iter: 
+            with ag.record():
+                l=loss(net(x),y).sum()
+            l.backward()
+            n+=y.size
+            trainer([w,b],lr,batch_size)
+            train_loss+=l.asscalar()
+            y=y.astype("float32")
+            train_accuracy+=(net(x).argmax(axis=1)==y).sum().asscalar()
+        test_accuracy=evaluate_accuracy(test_iter,net)
+        print("NO.%s :train_loss: %.4f, train_accuracy: %.4f, test_accuracy: %.4f"%(epoch+1,train_loss/n,train_accuracy/n,test_accuracy))
+train_ch3(net,train_iter,test_iter,cross_entropy,epochs,batch_size,w,b,lr,sgd)
+
+#用测试集验证并可视化
+for x,y in test_iter:
+    true_labels=d2l.get_fashion_mnist_labels(y.asnumpy())
+    pred_labels=d2l.get_fashion_mnist_labels(net(x).argmax(axis=1).asnumpy())
+    titles=[true+"\n"+pred for true,pred in zip(true_labels,pred_labels)]
+    d2l.show_fashion_mnist(x[0:9],titles[0:9])
+    break
 ```
+---
+
+## 4、多层感知机
