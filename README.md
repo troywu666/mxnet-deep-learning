@@ -161,3 +161,76 @@ for x,y in test_iter:
 ---
 
 ## 4、多层感知机
+多层感知机在单层神经网络的基础上引入了一到多个隐藏层，隐藏层位于输入层和输出层中间。
+若在隐藏层使用映射函数，将使得多层感知机变为单层神经网络，因此需要在隐藏层引入非线性变换。
+```python
+#加载数据
+from mxnet import autograd as ag
+from mxnet import ndarray as nd
+import d2lzh as d2l
+batch_size=256
+train_iter,test_iter=d2l.load_data_fashion_mnist(batch_size)
+
+#初始化参数，并为求导申请内存
+num_inputs,num_outputs,num_hiddens=28*28,10,256
+
+w1=nd.random.normal(scale=0.01,shape=(num_inputs,num_hiddens))
+b1=nd.zeros(num_hiddens)
+w2=nd.random.normal(scale=0.01,shape=(num_hiddens,num_outputs))
+b2=nd.zeros(num_outputs)
+
+for param in [w1,b1,w2,b2]:
+    param.attach_grad()
+
+#定义隐藏层的非线性变换函数，此处使用relu函数
+def relu(X):
+    return nd.maximum(X,0)
+
+#定义神经网络函数
+def Softmax(X):
+    X_sum_exp=X.exp().sum(axis=1,keepdims=True)
+    ##重要容易出错信息,keepdims用于保持维度特性
+    return X.exp()/X_sum_exp
+def net(X):
+    X=X.reshape(-1,num_inputs)
+    H1=relu(nd.dot(X,w1)+b1)
+    return Softmax(nd.dot(H1,w2)+b2)
+
+#定义损失函数和验证函数
+def cross_entropy(y_hat,y):
+    return -nd.pick(y_hat,y).log()
+def evaluate_accuracy(data_iter,net):
+    corr,n=0.0,0
+    for X,y in data_iter:
+        y=y.astype("float32")
+        y_hat=net(X)
+        corr+=(y_hat.argmax(axis=1)==y).sum().asscalar()
+        n+=y.size
+    return corr/n
+
+#定义随机梯度下降函数
+def sgd(params,lr,batch_size):
+    for param in params:
+        param[:]-=lr*param.grad/batch_size
+
+#定义训练函数和开始训练
+def train_ch3(train_iter,test_iter,batch_size,lr,net,params,epochs,loss,trainer):
+    for epoch in range(epochs):
+        for X,y in train_iter:
+            y=y.astype("float32")
+            n,train_cross_enropy,train_acc=0,0.0,0.0
+            with ag.record():
+                l=loss(net(X),y).sum()
+            l.backward()
+            trainer(params,lr,batch_size)
+            n+=y.size
+            train_cross_enropy+=l.asscalar()
+            train_acc+=(net(X).argmax(axis=1)==y).sum().asscalar()
+        test_acc=evaluate_accuracy(test_iter,net)
+        print("NO.%s ,train_loss is %.3f, train_acc is %.4f, test_acc is %.4f"%(epoch+1,train_cross_enropy/n,train_acc/n,test_acc))
+batch_size,lr,epochs=256,0.5,10
+train_ch3(train_iter,test_iter,batch_size,lr,net,[w1,b1,w2,b2],epochs,cross_entropy,sgd)
+```
+---
+
+## 5、用mxnet直接生成模型
