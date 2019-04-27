@@ -232,5 +232,47 @@ batch_size,lr,epochs=256,0.5,10
 train_ch3(train_iter,test_iter,batch_size,lr,net,[w1,b1,w2,b2],epochs,cross_entropy,sgd)
 ```
 ---
+## 5、正则化
+因神经网络你和能力极强，拟合数据时很容易出现过拟合现象，因此需要对模型做正则化，对抗过拟合
+### a、权重衰减
+即L2正则化，在损失函数上加上L2惩罚项
+```python
+from mxnet import autograd as ag
+from mxnet import nd
 
-## 5、用mxnet直接生成模型
+def sgd(params,lr,batch_size):
+    for param in params:
+        param[:]-=lr*param.grad/batch_size
+
+def l2_penalty(w):
+    return (w**2).sum()/2
+
+def entropy_loss(y_hat,y):
+    return -nd.pick(y_hat,y).log().sum()
+
+def evaluate_accuracy(data_iter,net):
+    acc,n=0.0,0
+    for X,y in data_iter:
+        y=y.astype('float32')
+        acc+=(net(X).argmax(axis=1)==y).sum().asscalar()
+        n+=y.size
+    return acc/n
+
+def trainer_ch3(batch_size,lr,train_iter,test_iter,net,train,epochs,loss,l2_penalty,params):
+    for epoch in range(epochs):
+        acc_train,n=0.0,0
+        for X,y in train_iter:
+            y_hat=net(X)
+            with ag.record():
+                l=loss+l2_penalty(params[0])##损失函数加上L2惩罚项
+            l.backward()
+            sgd(params,lr,batch_size)
+            n+=y.size
+            train_acc+=(y_hat.rgmax(axis=1)==y).sum().asscalar()
+        test_acc=evaluate_accuracy(test_iter,net)
+        print("NO.%d: train_loss=%.3f, test_loss="%(epoch+1,train_acc/n,test_acc))     
+```
+### b、dropout法
+
+---
+## 6、用mxnet直接生成模型
