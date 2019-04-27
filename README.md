@@ -273,6 +273,48 @@ def trainer_ch3(batch_size,lr,train_iter,test_iter,net,train,epochs,loss,l2_pena
         print("NO.%d: train_loss=%.3f, test_loss="%(epoch+1,train_acc/n,test_acc))     
 ```
 ### b、dropout法
+为了保证结果稳定，只在训练阶段使用dropout法
+```python
+from mxnet import autograd as ag
+from mxnet import nd
 
+def dropout(X,drop_prob):
+    assert 0<=drop_prob<=1
+    keep_prob=1-drop_prob
+    if keep_prob ==0:
+        return X.zeros_like()
+    ##小于keep_prob时为0，大于keep_prob时为1
+    mask=nd.random.uniform(0,1,X.shape)<keep_prob
+    return mask*X/keep_prob
+
+num_inputs,num_outputs,num_hiddens1,num_hiddens2=784,10,256,256
+
+w1=nd.random.normal(scale=0.01,shape=(num_inputs,num_hiddens1))
+b1=nd.zeros(num_hiddens1)
+w2=nd.random.normal(scale=0.01,shape=(num_hiddens1,num_hiddens2))
+b2=nd.zeros(num_hiddens2)
+w3=nd.random.normal(scale=0.01,shape=(num_hiddens2,num_outputs))
+b3=nd.zeros(num_outputs)
+
+params=[w1,b1,w2,b2,w3,b3]
+for param in params:
+    param.attach_grad()
+
+drop_prob1, drop_prob2=0.2,0.5
+
+def relu(X):
+    return nd.maximum(X,0)
+
+def net(X):
+    X=X.reshape(-1,num_inputs)
+    h1=relu(nd.dot(X,w1)+b1)
+    if ag.is_training():
+    ##判断是否为训练模式后再进行dropout
+        h1=dropout(h1,drop_prob1)
+    h2=relu(nd.dot(h1,w2)+b2)
+    if ag.is_training():
+        h2=dropout(h2,drop_prob2)
+    return nd.dot(h2,w3)+b3
+```
 ---
 ## 6、用mxnet直接生成模型
