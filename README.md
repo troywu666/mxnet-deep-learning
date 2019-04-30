@@ -387,5 +387,74 @@ net(X)
 * 注意：以上NestMLP的定义会导致该层神经网络作废，因为前向输出只有输出要加的神经网络层！！！
 ### 6.2、模型参数的访问、初始化和共享
 ```python
+#访问
+from mxnet.gluon import nn
+from mxnet import nd,init
+
+net=nn.Sequential()
+net.add(nn.Dense(256,activation="relu"))
+net.add(nn.Dense(10))
+net.initialize()
+
+X=nd.random.uniform(shape=(2,20))
+Y=net(X)
+
+import sys
+
+get_net=nn.Sequential()
+get_net.add(nn.Dense(256,activation="relu"))
+get_net.add(nn.Dense(10))
+
+try:
+    get_net(X)
+except RuntimeError as err:
+    sys.stderr.write(str(err))    
+
+net[0].params
+
+net[0].weight,net[0].bias
+
+net[0].weight.data()
+
+net[0].bias.data()
+
+net[0].weight.grad()
+
+net.collect_params()
+
+net.collect_params(".*weight")
+
+#初始化
+class MyInit(init.Initializer):
+    def _init_weight(self,name,data):
+        print("Init",name,data.shape)
+        data[:]=nd.random.uniform(low=-10,high=10,shape=data.shape)
+        data*=data.abs()>=5
+        
+net.initialize(MyInit(),force_reinit=True)
+net[0].weight.data()
+
+net[0].weight.set_data(net[0].weight.data()+1) ##用set_data使得参数全部+1
+net[0].weight.data()
+
+#参数共享
+from mxnet.gluon import nn
+from mxnet import nd
+
+net =nn.Sequential()
+shared=nn.Dense(8)
+net.add(nn.Dense(8,activation="relu"),
+       shared,
+       nn.Dense(8,activation="relu",params=shared.params),
+       nn.Dense(10))
+net.initialize()
+X=nd.random.uniform(shape=(2,20))
+
+net(X)
+
+net[1].weight.data()==net[2].weight.data()
+
+#延后初始化
+
 
 ```
