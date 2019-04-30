@@ -454,7 +454,17 @@ net(X)
 
 net[1].weight.data()==net[2].weight.data()
 
-#延后初始化
+#取消延后初始化
+from mxnet import nd,init
+from mxnet.gluon import nn
 
+net=nn.Sequential()
+net.add(nn.Dense(256,activation="relu",in_units=20))
+net.add(nn.Dense(10,in_units=256))
 
+class MyInit(init.Initializer):
+    def _init_weight(self,name,data):
+        print('Init',name,data.shape)
+
+net.initialize(init=MyInit())
 ```
