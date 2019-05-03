@@ -385,6 +385,7 @@ X=nd.random.uniform(shape=(20,20))
 net(X)
 ```
 * 注意：以上NestMLP的定义会导致该层神经网络作废，因为前向输出只有输出要加的神经网络层！！！
+
 ### 6.2、模型参数的访问、初始化和共享
 ```python
 #访问
@@ -424,7 +425,7 @@ net.collect_params()
 
 net.collect_params(".*weight")
 
-#初始化
+#取消延后初始化
 class MyInit(init.Initializer):
     def _init_weight(self,name,data):
         print("Init",name,data.shape)
@@ -454,7 +455,7 @@ net(X)
 
 net[1].weight.data()==net[2].weight.data()
 
-#取消延后初始化
+#自定义初始化
 from mxnet import nd,init
 from mxnet.gluon import nn
 
@@ -468,3 +469,99 @@ class MyInit(init.Initializer):
 
 net.initialize(init=MyInit())
 ```
+### 6.3、存储及读取
+```python
+from mxnet.gluon import nn
+from mxnet import nd
+
+x=nd.ones(3)
+nd.save("x",x)
+
+nd.load('x')
+
+class MLP(nn.Block):
+    def __init__(self,**kwargs):
+        super(MLP,self).__init__(**kwargs)
+        self.hidden=nn.Dense(256,activation="relu")
+        self.output=nn.Dense(10)
+    
+    def forward(self,x):
+        return self.output(self.hidden(x))
+        
+net=MLP()
+net.initialize()
+X=nd.random.uniform(shape=(2,20))
+print(net(X))
+
+filename='mlp_params'
+net.save_parameters(filename)
+
+net2=MLP()
+net2.load_parameters(filename)
+
+net2(X)
+
+net2(X)==net(X)
+```
+### 6.4、自定义层
+* 不含模型参数的自定义层
+```python
+class CenterLayer(nn.Block):
+    def __init__(self,**kwargs):
+        super(CenterLayer,self).__init__(**kwargs)
+    
+    def forward(self,x):
+        return x-x.mean()
+
+net=nn.Sequential()
+net.add(nn.Dense(128),
+        CenterLayer())
+
+net.initialize()
+y=net(nd.random.uniform(shape=(4,8)))
+y.mean().asscalar()
+```
+
+* 含有模型参数的自定义层
+```python
+from mxnet import gluon
+
+my_param=gluon.Parameter('my_param',shape=(2,20)
+my_param.initialize()
+(my_param.data(),my_param.grad())
+##可用Parameter类创建模型参数，但一般使用ParameterDict类
+
+params=gluon.ParameterDict()
+params.get('param2',shape=(2,3))
+params
+##使用gluon的ParameterDict类可以创建模型参数，自定义层常用此方法
+
+class MyDense(nn.Block):
+    def __init__(self,units,in_units,**kwargs):
+    ##初始定义时，输入值和输出值需要指定参数，即在**kwargs前就定义好
+    ##units放在in_units前面是为了后面bias定义时的书写方便，shape=（units,）
+        super(MyDense,self).__init__(**kwargs)
+        self.weight=self.params.get('weight',shape=(in_units,units))
+        self.bias=self.params.get('bias',shape=(units,))
+        
+    def forward(self,x):
+        linear=nd.dot(x,self.weight.data())+self.bias.data()
+        ##此处记得加上
+        return nd.relu(linear)
+
+dense=MyDense(in_units=5,units=3，prefix='oomydense')
+##  **kwargs是用来输入nn.Block的一些底层参数
+dense.initialize()
+dense.params
+
+dense(nd.random.uniform(shape=(2,5)))
+
+net=nn.Sequential()
+net.add(MyDense(in_units=256,units=128),
+       MyDense(in_units=128,units=10))
+
+net.initialize()
+net(nd.random.uniform(shape=(2,256)))
+```
+---
+# 二、卷积神经网络
