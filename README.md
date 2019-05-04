@@ -565,3 +565,68 @@ net(nd.random.uniform(shape=(2,256)))
 ```
 ---
 # 二、卷积神经网络
+## 1、二维互相关运算
+```python
+from mxnet import autograd as ag
+from mxnet import nd
+from mxnet.gluon import nn
+
+def corr2d(X,K):
+    h,w=K.shape
+    Y=nd.zeros((X.shape[0]-h+1,X.shape[1]-w+1))
+    for i in range(X.shape[0]-h+1):
+        for j in range(X.shape[1]-w+1):
+            Y[i,j]=(X[i:i+h,j:j+w]*K).sum()
+    return Y
+
+X = nd.array([[0, 1, 2], [3, 4, 5], [6, 7, 8]])
+K = nd.array([[0, 1], [2, 3]])
+corr2d(X, K)
+```
+## 2、二维卷积层
+```python 
+class Conv2d(nn.Block):
+    def __init__(self,kernel_size,**kwargs):
+        super(Conv2d,self).__init__(**kwargs)
+        self.weight=self.params.get('weight',shape=kernel_size)
+        self.bias=self.params.get('bias',shape=(1,))
+        
+    def forward(self,x):
+        return corr2d(x,self.weight.data())+self.bias.data()
+```
+### 3、通过数据学习核数组
+```python
+from mxnet import nd
+from mxnet import autograd as ag
+from mxnet.gluon import nn
+from mxnet import gluon
+
+conv2d=nn.Conv2D(1,kernel_size=(1,2))
+conv2d.initialize()
+
+##X=nd.ones((1,1,6,8))
+##X[:,:,:,2:6]=0
+##K=nd.array([[1,-1]])
+##Y=corr2d(X,K)
+
+##corr2d只能用在二维数组##
+
+X=nd.ones((6,8))
+X[:,4:5]=0
+K=nd.array([[1,-1]])
+Y=corr2d(X,K)
+print(X,K,Y)
+X=X.reshape((1,1,6,8))
+Y=Y.reshape((1,1,6,7))
+
+for i in range(10):
+    with ag.record():
+        Y_hat=conv2d(X)
+        l=(Y-Y_hat)**2
+    l.backward()
+    conv2d.weight.data()[:]-=16e-3 * conv2d.weight.grad()
+    ##16e-3是通过不断调参得到的相对较佳的学习率
+    print('NO.%d, loss:%.3f'%(i+1,l.sum().asscalar()))
+
+print(conv2d.weight.data().reshape((1,2)))
+```
