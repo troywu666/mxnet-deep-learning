@@ -594,7 +594,7 @@ class Conv2d(nn.Block):
     def forward(self,x):
         return corr2d(x,self.weight.data())+self.bias.data()
 ```
-### 3、通过数据学习核数组
+## 3、通过数据学习核数组
 ```python
 from mxnet import nd
 from mxnet import autograd as ag
@@ -630,3 +630,73 @@ for i in range(10):
 
 print(conv2d.weight.data().reshape((1,2)))
 ```
+## 4、填充与步长
+### 4.1、填充
+```python 
+from mxnet import nd
+from mxnet.gluon import nn
+
+def comp_conv2d(conv2d,X):
+    conv2d.initialize()
+    print(X)
+    X=X.reshape((1,1)+X.shape)
+    print(X)
+    Y=conv2d(X)
+    return Y.reshape(Y.shape[2:])
+
+##当卷积核的宽与高相同时
+conv2d=nn.Conv2D(1,kernel_size=3,padding=1)
+X=nd.random.uniform(shape=(8,8))
+comp_conv2d(conv2d,X)
+
+##当卷积核的宽与高不同时
+conv2d=nn.Conv2D(1,kernel_size=(5,3),padding=(2,1))
+comp_conv2d(conv2d,X)
+```
+### 4.2、步长
+```python
+conv2d=nn.Conv2D(1,kernel_size=3,padding=1,strides=2)
+comp_conv2d(conv2d,X)
+
+conv2d=nn.Conv2D(1,kernel_size=(3,5),padding=(0,1),strides=(3,5))
+comp_conv2d(conv2d,X)
+##当strides为1时，输出shape为（6,6），所以6/5≈2，因为取不到的值默认为0
+```
+## 5、多输入和多输出
+### 5.1、多输入
+```python
+from mxnet.gluon import nn
+from mxnet import nd
+import d2lzh as d2l
+
+def corr2d_multi_in(X,K):
+    return nd.add_n(*[d2l.corr2d(x,k) for x,k in zip(X,K)])
+
+X = nd.array([[[0, 1, 2], [3, 4, 5], [6, 7, 8]],
+              [[1, 2, 3], [4, 5, 6], [7, 8, 9]]])
+K = nd.array([[[0, 1], [2, 3]], [[1, 2], [3, 4]]])
+
+corr2d_multi_in(X, K)
+```
+### 5.2、多输出
+```python
+def corr2d_multi_in_out(X,K):
+    return nd.stack(*[corr2d_multi_in(X,k) for k in K])
+
+K = nd.array([[[0, 1], [2, 3]], [[1, 2], [3, 4]]])
+K=nd.stack(K,K+1,K+2)
+K.shape
+
+corr2d_multi_in_out(X,K)
+```
+### 5.3、1X1卷积层
+```python
+def corr2d_multi_in_out_1x1(X,K):
+    c_i,h,w=X.shape
+    c_o=K.shape[0]
+    X=X.reshape((c_i,h*w))
+    K=K.reshape((c_o,c_i))
+    Y=nd.dot(K,X)
+    return Y.shape(c_o,h,w)
+    ## 计算结果与corr2d_multi_in_out是一样的
+```         
