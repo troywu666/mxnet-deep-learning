@@ -1,6 +1,6 @@
-﻿# 基于mxnet框架的ndarray和autograd实现深度学习
+﻿# 基于mxnet框架的gluon实现深度学习
 
-标签（空格分隔）： 不调包，从0生成
+标签（空格分隔）： 实现简单模型（如多层感知机）时不调包，从0生成
 
 ---
 # 一、深度学习基础
@@ -283,7 +283,7 @@ def dropout(X,drop_prob):
     keep_prob=1-drop_prob
     if keep_prob ==0:
         return X.zeros_like()
-    ##小于keep_prob时为0，大于keep_prob时为1
+    ##小于keep_prob时为1，大于keep_prob时为0
     mask=nd.random.uniform(0,1,X.shape)<keep_prob
     return mask*X/keep_prob
 
@@ -699,4 +699,78 @@ def corr2d_multi_in_out_1x1(X,K):
     Y=nd.dot(K,X)
     return Y.shape(c_o,h,w)
     ## 计算结果与corr2d_multi_in_out是一样的
-```         
+```   
+## 6、LeNet神经网络
+### 6.1、构架模型
+```python 
+from mxnet.gluon import loss as gloss,nn
+from mxnet import autograd as ag, nd, init, gluon
+import d2lzh as d2l
+
+net=nn.Sequential()
+net.add(nn.Conv2D(channels=6, kernel_size=5, activation="sigmoid"),
+        nn.MaxPool2D(pool_size=2, strides=2),
+        nn.Conv2D(channels=3, kernel_size=5, activation='sigmoid'),
+        nn.MaxPool2D(pool_size=2, strides=2),
+        ##Dense会默认把批量大小*通道*高*宽的输入转化为（批量大小，通道*高*宽）
+        nn.Dense(120, activation='sigmoid'),
+        nn.Dense(84, activation="sigmoid"),
+        nn.Dense(10))
+
+X=nd.random.uniform(shape=(1,1,28,28))
+net.initialize()
+
+for layer in net:
+    X=layer(X)
+    print(layer.name, X.shape)##验证每一层神经网络的shape
+```
+### 6.2、训练模型
+* 训练过程出现的问题需要特别注意！！！
+```python
+batch_size=256
+train_iter,test_iter=d2l.load_data_fashion_mnist(batch_size=batch_size)
+
+def evaluate_accuracy(data_iter,net):
+    n,acc_sum=0,0.0##若将该初始化放到for循环内，将使得每batch_size就归零
+    for X,y in data_iter:
+        y_hat=net(X)
+        y=y.astype('float32')
+        acc_sum+=(y==y_hat.argmax(axis=1)).sum().asscalar()
+        n+=y.size
+    return acc_sum/n
+
+def entropy_loss(y_hat,y):
+    ##由于神经网络的前向计算和交叉熵是分开算的，所以容易出现溢出
+    return -nd.pick(y_hat,y).log()
+
+def sgd(lr,params,batch_size):
+    for param in params:
+        param[:]-=lr*param.grad/batch_size
+
+def train_ch5(net,train_iter,test_iter,trainer,lr,num_epochs,batch_size):
+    loss=gloss.SoftmaxCrossEntropyLoss()
+    for epoch in range(num_epochs):
+        n,train_acc=0,0.0
+        for X,y in train_iter:
+            with ag.record():
+                y_hat=net(X)
+                l=loss(y_hat,y).sum()
+            ##print(entropy_loss(y_hat,y).sum().asscalar())
+            ##从该语句可以发现，存在溢出
+            l.backward()
+            ##trainer(lr,net.collect_params(),batch_size)##
+            ##卷积神经网络出来的参数是特殊的参数字典，此处直接用gluon自带的trainer函数##
+            trainer.step(batch_size)
+            y=y.astype("float32")
+            train_acc+=(y_hat.argmax(axis=1)==y).sum().asscalar()
+            ##此处若将y_hat用net(X)代替，参数将仍是没有优化的参数
+            n+=y.size
+        test_acc=evaluate_accuracy(test_iter,net)
+        print('N0.%d, train_acc:%.3f , test_acc:%.3f '%(epoch+1,train_acc/n,test_acc))
+
+net.initialize(force_reinit=True,init=init.Xavier())
+lr,num_epochs=0.9,5
+trainer=gluon.Trainer(net.collect_params(),'sgd',{'learning_rate':lr})
+train_ch5(net,train_iter,test_iter,trainer,lr,num_epochs,batch_size)
+```
+## 7、AlexNet深度神经网络
