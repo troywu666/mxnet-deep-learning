@@ -774,3 +774,30 @@ trainer=gluon.Trainer(net.collect_params(),'sgd',{'learning_rate':lr})
 train_ch5(net,train_iter,test_iter,trainer,lr,num_epochs,batch_size)
 ```
 ## 7、AlexNet深度神经网络
+```python
+from mxnet import gluon,nd,init
+from mxnet.gluon import data as gdata, nn
+
+net=nn.Sequential()
+net.add(nn.Conv2D(channels=96, kernel_size=11, strides=4, activation='relu'),
+       nn.MaxPool2D(pool_size=3, strides=2),
+        ##使用较大的11X11窗口来捕获物体，同时较大步长来减少输出的宽和高，且增大通道数
+       nn.Conv2D(channels=256, kernel_size=5, padding=2, activation='relu'),
+       nn.MaxPool2D(pool_size=3, strides=2),
+        ##减小卷积窗口，使用填充为2来使得输入与输出的宽和高保持一致，且增大通道数
+       nn.Conv2D(384, kernel_size=3, padding=1, activation='relu'),
+       nn.Conv2D(384, kernel_size=3, padding=1, activation='relu'),
+       nn.Conv2D(256, kernel_size=3, padding=1, activation='relu'),
+       nn.MaxPool2D(pool_size=3, strides=2),
+        ##连续3个卷积层，且使用更小的卷积敞口，除了最后那个卷积层外，进一步增大了输出通道数
+       nn.Dense(4096, activation='relu'),
+       nn.Dropout(0.5),
+       nn.Dense(4096, activation='relu'),
+       nn.Dropout(0.5),
+        ##由于全连接层的输出个数比LeNet大数倍，需要用dropout法防止过拟合
+       nn.Dense(10))
+```
+## 8、VGG深度神经网络
+```python
+
+```
